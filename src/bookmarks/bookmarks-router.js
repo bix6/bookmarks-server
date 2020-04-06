@@ -2,6 +2,7 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../logger');
 const { bookmarks } = require('../store');
+const { isWebUri } = require('valid-url'); 
 
 const bookmarksRouter = express.Router();
 const bodyParser = express.json();
@@ -12,31 +13,36 @@ bookmarksRouter
         res.json(bookmarks);
     })
     .post(bodyParser, (req, res) => {
-        const { title } = req.body;
-
-        if (!title) {
-            logger.error('Title required');
-            return res
-                .status(400)
-                .send('Invalid Data');
+        for (const field of ['title', 'url', 'rating', 'description']) {
+            if (!req.body[field]) {
+                logger.error(`${field} is required`);
+                return res.status(400).send(`${field} is required`);
+            }
         }
 
-        const id = uuidv4();
+        const { title, url, description, rating } = req.body;
 
-        const bookmark = {
-            id,
-            title
-        };
+        if (Number.isNaN(rating) || rating < 0 || rating > 5) {
+            logger.error(`Invalid rating ${rating}`);
+            return res.status(400).send(`rating must be between 0 and 5`);
+        }
+
+        if (!isWebUri(url)) {
+            logger.error(`Invalid url ${url} supplied`);
+            return res.status(400).send(`url must be valid`);
+        }
+
+        const bookmark = { id: uuidv4(), title, url, description, rating };
 
         bookmarks.push(bookmark);
 
-        logger.info(`Bookmark with id ${id} created`);
+        logger.info(`Bookmark with id ${bookmark.id} created`);
 
         res
             .status(201)
-            .location(`http://localhost:8000/bookmarks/${id}`)
+            .location(`http://localhost:8000/bookmarks/${bookmark.id}`)
             .json(bookmark);
-    })
+    });
 
 bookmarksRouter
     .route('/bookmarks/:id')
