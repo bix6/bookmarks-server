@@ -50,7 +50,7 @@ describe('Bookmarks Endpoints', () => {
                 return supertest(app)
                     .get(`/bookmarks/${id}`)
                     .set('Authorization', `Bearer ${process.env.API_TOKEN}`)
-                    .expect(404, { error: { message: `Bookmark doesn't exist` } });
+                    .expect(404, { error: { message: `Bookmark does not exist` } });
             });
         });
 
@@ -150,6 +150,42 @@ describe('Bookmarks Endpoints', () => {
                     expect(res.body.title).to.eql(expectedBookmark.title);
                     expect(res.body.description).to.eql(expectedBookmark.description)
                 });
+        });
+    });
+
+    describe.only('DELETE /bookmarks/:id', () => {
+        context('Given no bookmarks', () => {
+            it('returns 404', () => {
+                const id = 666;
+                return supertest(app)
+                    .delete(`/bookmarks/${id}`)
+                    .set('Authorization', `Bearer ${process.env.API_TOKEN}`)
+                    .expect(404, { error: { message: 'Bookmark does not exist' } });
+            });
+        });
+
+        context('Given bookmarks', () => {
+            const testList = makeBookmarksArray();
+
+            beforeEach('insert bookmarks', () => {
+                return db('bookmarks').insert(testList);
+            });
+
+            it('responds with 204 and deletes item', () => {
+                const idToRemove = 2;
+                const expectedList = testList.filter(bookmark => bookmark.id != idToRemove);
+
+                return supertest(app)
+                    .delete(`/bookmarks/${idToRemove}`)
+                    .set('Authorization', `Bearer ${process.env.API_TOKEN}`)
+                    .expect(204)
+                    .then(res => 
+                        supertest(app)
+                            .get(`/bookmarks`)
+                            .set('Authorization', `Bearer ${process.env.API_TOKEN}`)
+                            .expect(expectedList)
+                    );
+            });
         });
     });
 });

@@ -9,6 +9,9 @@ const BookmarksService = {
         return knex.insert(bookmark).into('bookmarks').returning('*').then(rows => {
             return rows[0]
         });
+    },
+    deleteBookmark(knex, id) {
+        return knex('bookmarks').where({ id }).delete();
     }
 }
 

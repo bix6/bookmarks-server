@@ -64,41 +64,29 @@ bookmarksRouter
     });
 
 bookmarksRouter
-    .route('/:id')
-    .get((req, res, next) => {
-        const { id } = req.params;
-        const db = req.app.get('db');
-
-        bookmarksService.getById(db, id)
+    .route(`/:id`)
+    .all((req, res, next) => {
+        bookmarksService.getById(req.app.get('db'), req.params.id)
             .then(bookmark => {
                 if (!bookmark) {
-                    logger.error(`Bookmark with id ${id} not found`);
                     return res.status(404).json({
-                        error: { message: `Bookmark doesn't exist` }
+                        error: { message: `Bookmark does not exist` }
                     });
                 }
-                res.json(sanitize(bookmark));
+                res.bookmark = bookmark;
+                next();
             })
             .catch(next);
     })
-    .delete((req, res) => {
-        const { id } = req.params;
-
-        const bookmarkIndex = bookmarks.findIndex(b => b.id == id);
-
-        if (bookmarkIndex === -1) {
-            logger.error(`Bookmark with id ${id} not found.`);
-            return res
-                .status(404)
-                .send('Bookmark not found');
-        }
-
-        bookmarks.splice(bookmarkIndex, 1);
-
-        logger.info(`Bookmark with id ${id} deleted.`)
-        res
-            .status(204)
-            .end();
+    .get((req, res, next) => {
+        res.json(sanitize(res.bookmark));
+    })
+    .delete((req, res, next) => {
+        bookmarksService.deleteBookmark(req.app.get('db'), req.params.id)
+            .then(() => {
+                res.status(204).end()
+            })
+            .catch(next);
     });
 
 module.exports = bookmarksRouter;
