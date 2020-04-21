@@ -1,8 +1,8 @@
 const knex = require('knex');
 const app = require('../src/app');
-const { makeBookmarksArray } = require('./bookmarks.fixtures.js');
+const { makeBookmarksArray, makeTestBookmark, makeMaliciousBookmark } = require('./bookmarks.fixtures.js');
 
-describe.only('Bookmarks Endpoints', () => {
+describe('Bookmarks Endpoints', () => {
     let db;
 
     before('make knex instance', () => {
@@ -68,6 +68,88 @@ describe.only('Bookmarks Endpoints', () => {
                     .set('Authorization', `Bearer ${process.env.API_TOKEN}`)
                     .expect(200, bookmark);
             });
+        });
+    });
+
+    describe('POST /bookmarks', () => {
+        it('creates bookmark, returns 201 and new bookmark', function() {
+            const newBookmark = makeTestBookmark();
+            return supertest(app)
+                .post('/bookmarks')
+                .set('Authorization', `Bearer ${process.env.API_TOKEN}`)
+                .send(newBookmark)
+                .expect(201)
+                .expect(res => {
+                    expect(res.body.title).to.eql(newBookmark.title);
+                    expect(res.body.url).to.eql(newBookmark.url);
+                    expect(res.body.rating).to.eql(newBookmark.rating);
+                    expect(res.body).to.have.property('id');
+                    expect(res.headers.location).to.eql(`/bookmarks/${res.body.id}`);
+                })
+                .then(postRes => 
+                    supertest(app)
+                        .get(`/bookmarks/${postRes.body.id}`)
+                        .set('Authorization', `Bearer ${process.env.API_TOKEN}`)
+                        .expect(postRes.body)
+                );
+        });
+
+        const requiredFields = ['title', 'url', 'rating'];
+
+        requiredFields.forEach(field => {
+            const newBookmark = makeTestBookmark();
+
+            it(`returns 400 and error when '${field}' is missing`, () => {
+                delete newBookmark[field];
+
+                return supertest(app)
+                    .post('/bookmarks')
+                    .set('Authorization', `Bearer ${process.env.API_TOKEN}`)
+                    .send(newBookmark)
+                    .expect(400, {
+                        error: { message: `Missing '${field}' in request body` }
+                    });
+            });
+        });
+
+        it(`returns 400 and error when rating is bad`, () => {
+            const newBookmark = makeTestBookmark();
+            newBookmark.rating = '-5';
+
+            return supertest(app)
+                .post('/bookmarks')
+                .set('Authorization', `Bearer ${process.env.API_TOKEN}`)
+                .send(newBookmark)
+                .expect(400, {
+                    error: { message: `rating must be between 0 and 5` }
+                });
+        });
+
+        it(`returns 400 and error when url is bad`, () => {
+            const newBookmark = makeTestBookmark();
+            newBookmark.url = 'ajogijasogi';
+
+            return supertest(app)
+                .post('/bookmarks')
+                .set('Authorization', `Bearer ${process.env.API_TOKEN}`)
+                .send(newBookmark)
+                .expect(400, {
+                    error: { message: `url must be valid` }
+                });
+        });
+
+        it(`removes XSS attack content`, () => {
+            const { maliciousBookmark, expectedBookmark } = makeMaliciousBookmark();
+
+            return supertest(app)
+                .post('/bookmarks')
+                .set('Authorization', `Bearer ${process.env.API_TOKEN}`)
+                .send(maliciousBookmark)
+                .expect(201)
+                .expect(res => {
+                    expect(res.body.title).to.eql(expectedBookmark.title);
+                    expect(res.body.description).to.eql(expectedBookmark.description)
+                });
         });
     });
 });

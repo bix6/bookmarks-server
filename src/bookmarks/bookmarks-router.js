@@ -4,62 +4,67 @@ const logger = require('../logger');
 const { bookmarks } = require('../store');
 const { isWebUri } = require('valid-url'); 
 const bookmarksService = require('./bookmarks-service');
+const xss = require('xss');
 
 const bookmarksRouter = express.Router();
 const bodyParser = express.json();
 
-const serialize = bookmark => ({
-    id: bookmark.id,
-    title: bookmark.title,
-    url: bookmark.url,
-    description: bookmark.description,
-    rating: Number(bookmark.rating)
+const sanitize = bookmark => ({
+    id: xss(bookmark.id),
+    title: xss(bookmark.title),
+    url: xss(bookmark.url),
+    description: xss(bookmark.description),
+    rating: xss(Number(bookmark.rating))
 });
 
 bookmarksRouter
-    .route('/bookmarks')
+    .route('/')
     .get((req, res, next) => {
         const db = req.app.get('db');
         bookmarksService.getAll(db)
             .then(bookmarks => {
-                res.json(bookmarks.map(serialize))
+                res.json(bookmarks.map(sanitize))
             })
             .catch(next);
     })
-    .post(bodyParser, (req, res) => {
-        for (const field of ['title', 'url', 'rating', 'description']) {
-            if (!req.body[field]) {
-                logger.error(`${field} is required`);
-                return res.status(400).send(`${field} is required`);
+    .post(bodyParser, (req, res, next) => {
+        const { title, url, description, rating } = req.body;
+        const newBookmark = { title, url, description, rating };
+
+        for (const [key, val] of Object.entries(newBookmark)) { 
+            if (val == null && key != 'description') {
+                return res.status(400).json({
+                    error: { message: `Missing '${key}' in request body` }
+                });
             }
         }
 
-        const { title, url, description, rating } = req.body;
-
         if (Number.isNaN(rating) || rating < 0 || rating > 5) {
             logger.error(`Invalid rating ${rating}`);
-            return res.status(400).send(`rating must be between 0 and 5`);
+            return res.status(400).json({
+                error: { message: `rating must be between 0 and 5` }
+            });
         }
 
         if (!isWebUri(url)) {
             logger.error(`Invalid url ${url} supplied`);
-            return res.status(400).send(`url must be valid`);
-        }
+            return res.status(400).json({
+                error: { message: `url must be valid` }
+            });
+        };
 
-        const bookmark = { id: uuidv4(), title, url, description, rating };
-
-        bookmarks.push(bookmark);
-
-        logger.info(`Bookmark with id ${bookmark.id} created`);
-
-        res
-            .status(201)
-            .location(`http://localhost:8000/bookmarks/${bookmark.id}`)
-            .json(bookmark);
+        bookmarksService.insert(req.app.get('db'), newBookmark)
+            .then(bookmark => {
+                res
+                    .status(201)
+                    .location(`/bookmarks/${bookmark.id}`)
+                    .json(sanitize(bookmark));
+            })
+            .catch(next);
     });
 
 bookmarksRouter
-    .route('/bookmarks/:id')
+    .route('/:id')
     .get((req, res, next) => {
         const { id } = req.params;
         const db = req.app.get('db');
@@ -72,7 +77,7 @@ bookmarksRouter
                         error: { message: `Bookmark doesn't exist` }
                     });
                 }
-                res.json(serialize(bookmark));
+                res.json(sanitize(bookmark));
             })
             .catch(next);
     })
