@@ -5,6 +5,7 @@ const { bookmarks } = require('../store');
 const { isWebUri } = require('valid-url'); 
 const bookmarksService = require('./bookmarks-service');
 const xss = require('xss');
+const path = require('path');
 
 const bookmarksRouter = express.Router();
 const bodyParser = express.json();
@@ -57,7 +58,7 @@ bookmarksRouter
             .then(bookmark => {
                 res
                     .status(201)
-                    .location(`/bookmarks/${bookmark.id}`)
+                    .location(path.posix.join(req.originalUrl, `/${bookmark.id}`))
                     .json(sanitize(bookmark));
             })
             .catch(next);
@@ -85,6 +86,27 @@ bookmarksRouter
         bookmarksService.deleteBookmark(req.app.get('db'), req.params.id)
             .then(() => {
                 res.status(204).end()
+            })
+            .catch(next);
+    })
+    .patch(bodyParser, (req, res, next) => {
+        const { title, url, description, rating } = req.body;
+        const updateBookmark = { title, url, description, rating };
+
+        const fieldCount = Object.values(updateBookmark).filter(Boolean).length;
+        if (fieldCount === 0) {
+            return res.status(400).json({ 
+                error: { message: `Request body must include at least one of 'title', 'url', 'description' and 'rating'` } 
+            });
+        }
+
+        bookmarksService.patchBookmark(
+            req.app.get('db'),
+            req.params.id,
+            updateBookmark
+        )
+            .then(() => {
+                res.status(204).end();
             })
             .catch(next);
     });
