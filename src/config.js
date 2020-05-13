@@ -1,6 +1,7 @@
 module.exports = {
     PORT: process.env.PORT || 8000,
-    NODE_ENV: process.env.NODE_ENV || 'development',
-    API_TOKEN: process.env.API_TOKEN || 'config.js-api-token',
-    DB_URL: process.env.DB_URL || 'config.js-DB-URL'
+    NODE_ENV: process.env.NODE_ENV || 'CHECK CONFIG',
+    API_TOKEN: process.env.API_TOKEN || 'CHECK CONFIG',
+    DATABASE_URL: process.env.DATABASE_URL || 'CHECK CONFIG',
+    TEST_DATABASE_URL: process.env.TEST_DATABASE_URL || 'CHECK CONFIG',
 }
